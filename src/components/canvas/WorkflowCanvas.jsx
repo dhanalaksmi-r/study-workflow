@@ -46,13 +46,13 @@ const nodeTypes = {
 //     └── retry → Weak Spot Detector ────┘
 //
 const initialNodes = [
-  { id: '1', type: 'startNode',          position: { x: 420, y: 40 },   data: { topic: 'React Hooks' } },
-  { id: '2', type: 'resourceCurator',    position: { x: 380, y: 160 },  data: {} },
-  { id: '3', type: 'flashcardGenerator', position: { x: 380, y: 360 },  data: {} },
-  { id: '4', type: 'quizGenerator',      position: { x: 360, y: 600 },  data: {} },
-  { id: '5', type: 'conditionNode',      position: { x: 420, y: 1000 }, data: {} },
-  { id: '6', type: 'endNode',            position: { x: 760, y: 1180 }, data: {} },
-  { id: '7', type: 'weakSpotDetector',   position: { x: 60,  y: 1180 }, data: {} },
+  { id: '1', type: 'startNode',          position: { x: 480, y: 40 },   data: { topic: 'React Hooks' } },
+  { id: '2', type: 'resourceCurator',    position: { x: 410, y: 180 },  data: {} },
+  { id: '3', type: 'flashcardGenerator', position: { x: 410, y: 420 },  data: {} },
+  { id: '4', type: 'quizGenerator',      position: { x: 390, y: 700 },  data: {} },
+  { id: '5', type: 'conditionNode',      position: { x: 480, y: 1180 }, data: {} },
+  { id: '6', type: 'endNode',            position: { x: 900, y: 1380 }, data: {} },
+  { id: '7', type: 'weakSpotDetector',   position: { x: 60,  y: 1380 }, data: {} },
 ]
 
 const initialEdges = [
@@ -116,16 +116,19 @@ export default function WorkflowCanvas() {
       <NodeSidebar />
       <div ref={reactFlowWrapper} style={{ flex: 1 }}>
         <ReactFlow
-          nodes={storeNodes}
-          edges={storeEdges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onInit={setReactFlowInstance}
-          onDrop={onDrop}
-          onDragOver={onDragOver}
-          nodeTypes={nodeTypes}
-          fitView
+        nodes={storeNodes}
+        edges={storeEdges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onInit={setReactFlowInstance}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+        nodeTypes={nodeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.2}
+        maxZoom={1.5}
         >
           <Background />
           <Controls />

@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { useWorkflowStore } from '../../store/workflowStore'
 import { callGeminiJSON } from '../../api/geminiApi'
-
+import NodeHeader from './shared/NodeHeader'
+import ScrollArea from './shared/ScrollArea'   // only if the node has a list
 // ─── System prompt ────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are a flashcard generator for students.
 Given a topic, return exactly 6 flashcards as a JSON array.
@@ -40,7 +41,7 @@ function FlashCard({ card, index }) {
         borderRadius: 10,
         padding: '12px 14px',
         background: flipped ? colors.bg : '#fff',
-        minHeight: 80,
+        minHeight: 'auto',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
@@ -93,7 +94,7 @@ export default function FlashcardGeneratorNode({ id, data }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(existingOutput?.reviewed || false)
-
+  const [collapsed, setCollapsed] = useState(false)
   const status = nodeStatus[id] || 'pending'
 
   // Auto-sync topic from StartNode, same pattern as ResourceCuratorNode
@@ -157,36 +158,25 @@ export default function FlashcardGeneratorNode({ id, data }) {
       border: `1.5px solid ${status === 'done' ? '#5DCAA5' : '#AFA9EC'}`,
       borderRadius: 12,
       padding: 16,
-      width: 320,
+      width: 380,
       fontFamily: 'sans-serif',
       boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
     }}>
       <Handle type="target" position={Position.Top} />
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            background: '#EEEDFE', color: '#3C3489',
-            borderRadius: 6, padding: '3px 10px',
-            fontSize: 10, fontWeight: 500,
-          }}>
-            AI NODE
-          </span>
-          <span style={{ fontWeight: 600, fontSize: 13, color: '#1a1a1a' }}>
-            Flashcard Generator
-          </span>
-        </div>
-        <span style={{
-          fontSize: 10, padding: '2px 8px', borderRadius: 6,
-          background: sc.bg, color: sc.color, fontWeight: 500,
-          textTransform: 'uppercase'
-        }}>
-          {status}
-        </span>
-      </div>
+      <NodeHeader
+      badge="AI NODE"                                    // or omit for non-AI nodes
+      badgeColor={{ bg: '#EEEDFE', color: '#3C3489' }}   // match node's color theme
+      title="Flashcard Generator"                         // node's title
+      status={status}
+      statusColors={statusColors[status]}
+      collapsed={collapsed}
+      onToggleCollapse={() => setCollapsed(c => !c)}
+      />
 
       {/* Topic input */}
+      {!collapsed && (
+        <>
       <label style={{ fontSize: 11, color: '#888', display: 'block', marginBottom: 4 }}>
         Topic
       </label>
@@ -198,7 +188,7 @@ export default function FlashcardGeneratorNode({ id, data }) {
         disabled={done}
         style={{
           width: '100%', padding: '8px 10px', borderRadius: 8,
-          border: '1px solid #ddd', fontSize: 13, marginBottom: 10,
+          border: '1px solid #ddd', fontSize: 14, marginBottom: 10,
           boxSizing: 'border-box', background: done ? '#f9f9f9' : '#fff',
           color: done ? '#888' : '#1a1a1a',
         }}
@@ -229,7 +219,7 @@ export default function FlashcardGeneratorNode({ id, data }) {
 
       {/* Stats bar */}
       {cards.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 10, fontSize: 11, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10, fontSize: 12, flexWrap: 'wrap' }}>
           <span style={{ background: '#E1F5EE', color: '#085041', borderRadius: 6, padding: '2px 8px' }}>
             {easyCount} easy
           </span>
@@ -245,11 +235,11 @@ export default function FlashcardGeneratorNode({ id, data }) {
 
       {/* Flashcards */}
       {cards.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+        <ScrollArea maxHeight={300}>
           {cards.map((c, i) => (
             <FlashCard key={i} card={c} index={i} />
           ))}
-        </div>
+        </ScrollArea>
       )}
 
       {/* Done button */}
@@ -259,7 +249,7 @@ export default function FlashcardGeneratorNode({ id, data }) {
           style={{
             width: '100%', padding: '8px 0', borderRadius: 8,
             border: '1.5px solid #5DCAA5', background: '#fff',
-            color: '#1D9E75', fontWeight: 500, fontSize: 13, cursor: 'pointer',
+            color: '#1D9E75', fontWeight: 500, fontSize: 14, cursor: 'pointer',
           }}
         >
           Mark as reviewed → next
@@ -274,7 +264,7 @@ export default function FlashcardGeneratorNode({ id, data }) {
           ✓ Reviewed — workflow can advance
         </div>
       )}
-
+      </>)}
       <Handle type="source" position={Position.Bottom} />
     </div>
   )

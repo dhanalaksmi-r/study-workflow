@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { useWorkflowStore } from '../../store/workflowStore'
 import { callGeminiJSON } from '../../api/geminiApi'
-
+import NodeHeader from './shared/NodeHeader'
+import ScrollArea from './shared/ScrollArea'   // only if the node has a list
 // ─── System prompt ────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are a quiz generator for students.
 Given a topic, return exactly 5 multiple choice questions as a JSON array.
@@ -104,7 +105,7 @@ export default function QuizGeneratorNode({ id, data }) {
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(existingOutput?.submitted || false)
   const [score, setLocalScore] = useState(existingOutput?.score ?? null)
-
+  const [collapsed, setCollapsed] = useState(false)
   const status = nodeStatus[id] || 'pending'
 
   // Auto-sync topic from StartNode
@@ -202,36 +203,26 @@ export default function QuizGeneratorNode({ id, data }) {
       border: `1.5px solid ${status === 'done' ? '#5DCAA5' : '#7FBDA8'}`,
       borderRadius: 12,
       padding: 16,
-      width: 340,
+      width: 380,
       fontFamily: 'sans-serif',
       boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
     }}>
       <Handle type="target" position={Position.Top} />
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            background: '#E1F5EE', color: '#085041',
-            borderRadius: 6, padding: '3px 10px',
-            fontSize: 10, fontWeight: 500,
-          }}>
-            AI NODE
-          </span>
-          <span style={{ fontWeight: 600, fontSize: 13, color: '#1a1a1a' }}>
-            Quiz Generator
-          </span>
-        </div>
-        <span style={{
-          fontSize: 10, padding: '2px 8px', borderRadius: 6,
-          background: sc.bg, color: sc.color, fontWeight: 500,
-          textTransform: 'uppercase'
-        }}>
-          {status}
-        </span>
-      </div>
+      <NodeHeader
+      badge="AI NODE"                                    // or omit for non-AI nodes
+      badgeColor={{ bg: '#E1F5EE', color: '#085041' }}   // match node's color theme
+      title="Quiz Generator"                         // node's title
+      status={status}
+      statusColors={statusColors[status]}
+      collapsed={collapsed}
+      onToggleCollapse={() => setCollapsed(c => !c)}
+      />
 
       {/* Topic input */}
+      {!collapsed && (
+        <>
       {questions.length === 0 && (
         <>
           <label style={{ fontSize: 11, color: '#888', display: 'block', marginBottom: 4 }}>
@@ -292,7 +283,7 @@ export default function QuizGeneratorNode({ id, data }) {
 
       {/* Questions */}
       {questions.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+        <ScrollArea maxHeight={400}>
           {questions.map((q, i) => (
             <QuestionBlock
               key={i}
@@ -303,7 +294,7 @@ export default function QuizGeneratorNode({ id, data }) {
               submitted={submitted}
             />
           ))}
-        </div>
+        </ScrollArea>
       )}
 
       {/* Submit / Retake buttons */}
@@ -315,7 +306,7 @@ export default function QuizGeneratorNode({ id, data }) {
             width: '100%', padding: '8px 0', borderRadius: 8,
             border: 'none', cursor: allAnswered ? 'pointer' : 'not-allowed',
             background: allAnswered ? '#1D9E75' : '#ccc',
-            color: '#fff', fontWeight: 500, fontSize: 13,
+            color: '#fff', fontWeight: 500, fontSize: 14,
           }}
         >
           {allAnswered
@@ -330,13 +321,14 @@ export default function QuizGeneratorNode({ id, data }) {
           style={{
             width: '100%', padding: '8px 0', borderRadius: 8,
             border: '1.5px solid #AFA9EC', background: '#fff',
-            color: '#7F77DD', fontWeight: 500, fontSize: 13, cursor: 'pointer',
+            color: '#7F77DD', fontWeight: 500, fontSize: 14, cursor: 'pointer',
           }}
         >
           Retake quiz
         </button>
       )}
-
+      </>
+      )}
       <Handle type="source" position={Position.Bottom} />
     </div>
   )

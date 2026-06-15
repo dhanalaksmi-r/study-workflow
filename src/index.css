@@ -1,2 +1,28 @@
+/* src/index.css */
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: sans-serif; background: #f9f9f9; }
+
+/* ── Thin, subtle scrollbars for node content areas ───────────────── */
+.node-scroll-area {
+  scrollbar-width: thin;
+  scrollbar-color: #ddd transparent;
+}
+.node-scroll-area::-webkit-scrollbar {
+  width: 6px;
+}
+.node-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+.node-scroll-area::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 3px;
+}
+.node-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: #bbb;
+}
+
+/* ── React Flow node wrapper — remove default padding/border ────────── */
+.react-flow__node {
+  font-family: sans-serif;
+}
