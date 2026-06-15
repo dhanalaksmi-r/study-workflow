@@ -109,6 +109,17 @@ export default function ResourceCuratorNode({ id, data }) {
     }
   }, [activeTopic,done])
 
+  // Re-sync local state whenever this node's output is reset externally
+// (e.g. WeakSpotDetectorNode calling resetNodeOutput on loop-back)
+  useEffect(() => {
+  const out = nodeOutputs[id]
+  if (out) {
+    setDone(out.reviewed ?? false)
+    setResources(out.resources ?? [])
+    if (out.topic) setTopic(out.topic)
+  }
+  }, [nodeOutputs[id]])
+
   // ─── FIX 2: generate search queries with AI, then get REAL links via Serper ─
   async function generate() {
     if (!topic.trim()) return

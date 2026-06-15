@@ -114,6 +114,18 @@ export default function QuizGeneratorNode({ id, data }) {
     }
   }, [activeTopic, submitted])
 
+  // Re-sync local state whenever this node's output is reset externally
+  useEffect(() => {
+  const out = nodeOutputs[id]
+  if (out) {
+    setQuestions(out.questions ?? [])
+    setAnswers(out.answers ?? {})
+    setSubmitted(out.submitted ?? false)
+    setLocalScore(out.score ?? null)
+    if (out.topic) setTopic(out.topic)
+  }
+  }, [nodeOutputs[id]])
+
   async function generate() {
     if (!topic.trim()) return
     setLoading(true)

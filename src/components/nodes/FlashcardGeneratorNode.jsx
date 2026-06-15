@@ -103,6 +103,16 @@ export default function FlashcardGeneratorNode({ id, data }) {
     }
   }, [activeTopic, done])
 
+  // Re-sync local state whenever this node's output is reset externally
+  useEffect(() => {
+  const out = nodeOutputs[id]
+  if (out) {
+    setDone(out.reviewed ?? false)
+    setCards(out.cards ?? [])
+    if (out.topic) setTopic(out.topic)
+  }
+  }, [nodeOutputs[id]])
+
   async function generate() {
     if (!topic.trim()) return
     setLoading(true)
