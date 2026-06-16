@@ -53,6 +53,8 @@ const initialNodes = [
   { id: '5', type: 'conditionNode',      position: { x: 480, y: 1180 }, data: {} },
   { id: '6', type: 'endNode',            position: { x: 900, y: 1380 }, data: {} },
   { id: '7', type: 'weakSpotDetector',   position: { x: 60,  y: 1380 }, data: {} },
+  { id: '8', type: 'textInput',          position: { x: 900, y: 400 }, data: {} },
+  { id: '9', type: 'assignmentReviewer', position: { x: 870, y: 650 }, data: {} },
 ]
 
 const initialEdges = [
@@ -68,6 +70,7 @@ const initialEdges = [
   // Loop back from Weak Spot Detector to Resource Curator
   { id: 'e7-2', source: '7', target: '2', label: 'Loop back',
     style: { stroke: '#AFA9EC', strokeDasharray: '5 5' }, labelStyle: { fill: '#7F77DD' } },
+  { id: 'e8-9', source: '8', target: '9' },
 ]
 
 export default function WorkflowCanvas() {

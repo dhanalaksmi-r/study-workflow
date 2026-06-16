@@ -1,7 +1,7 @@
 // src/store/workflowStore.js
 import { create } from 'zustand'
-
-export const useWorkflowStore = create((set, get) => ({
+import { persist } from 'zustand/middleware'
+export const useWorkflowStore = create(persist((set, get) => ({
 
   // ─── Canvas state ────────────────────────────────────────────────
   // Nodes and edges now live in the store (not local useNodesState/useEdgesState)
@@ -77,4 +77,4 @@ export const useWorkflowStore = create((set, get) => ({
     retryCount: 0,
   }),
 
-}))
+})))
