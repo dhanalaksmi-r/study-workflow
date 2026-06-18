@@ -5,7 +5,7 @@ import { Handle, Position } from '@xyflow/react'
 import { useWorkflowStore } from '../../store/workflowStore'
 import NodeHeader from './shared/NodeHeader'
 
-export default function TextInputNode({ id, data }) {
+export default function TextInputNode({ id, data, standalone}) {
   const { nodeOutputs, setOutput, setStatus, nodeStatus } = useWorkflowStore()
 
   const existingOutput = nodeOutputs[id]
@@ -39,7 +39,7 @@ export default function TextInputNode({ id, data }) {
       borderRadius: 14, padding: 18, width: 380,
       fontFamily: 'sans-serif', boxShadow: '0 4px 14px rgba(0,0,0,0.07)',
     }}>
-      <Handle type="target" position={Position.Top} />
+      {!standalone && <Handle type="target" position={Position.Top} />}
 
       <NodeHeader
         title="✏ Text Input"
@@ -107,7 +107,7 @@ export default function TextInputNode({ id, data }) {
         </>
       )}
 
-      <Handle type="source" position={Position.Bottom} />
+      {!standalone && <Handle type="source" position={Position.Bottom} />}
     </div>
   )
 }

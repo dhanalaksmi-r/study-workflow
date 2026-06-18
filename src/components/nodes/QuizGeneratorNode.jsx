@@ -94,7 +94,7 @@ function QuestionBlock({ q, index, selected, onSelect, submitted }) {
 }
 
 // ─── Main node ────────────────────────────────────────────────────────────────
-export default function QuizGeneratorNode({ id, data }) {
+export default function QuizGeneratorNode({ id, data, standalone }) {
   const { nodeOutputs, setOutput, setStatus, nodeStatus, activeTopic, setScore } = useWorkflowStore()
 
   const existingOutput = nodeOutputs[id]
@@ -207,7 +207,7 @@ export default function QuizGeneratorNode({ id, data }) {
       fontFamily: 'sans-serif',
       boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
     }}>
-      <Handle type="target" position={Position.Top} />
+      {!standalone && <Handle type="target" position={Position.Top} />}
 
       {/* Header */}
       <NodeHeader
@@ -329,7 +329,7 @@ export default function QuizGeneratorNode({ id, data }) {
       )}
       </>
       )}
-      <Handle type="source" position={Position.Bottom} />
+      {!standalone && <Handle type="source" position={Position.Bottom} />}
     </div>
   )
 }

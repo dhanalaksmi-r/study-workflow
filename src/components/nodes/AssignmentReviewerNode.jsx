@@ -22,7 +22,7 @@ Rules:
 - If the submission is off-topic or very short, give a low score and low confidence
 - Return ONLY valid JSON object, no extra text, no markdown fences`
 
-export default function AssignmentReviewerNode({ id, data }) {
+export default function AssignmentReviewerNode({ id, data ,standalone}) {
   const {
     nodeOutputs, setOutput, setStatus, nodeStatus,
     addEscalation, activeTopic,
@@ -116,7 +116,7 @@ Student submission: ${submission}
       borderRadius: 14, padding: 18, width: 400,
       fontFamily: 'sans-serif', boxShadow: '0 4px 14px rgba(0,0,0,0.07)',
     }}>
-      <Handle type="target" position={Position.Top} />
+      {!standalone && <Handle type="target" position={Position.Top} />}
 
       <NodeHeader
         badge="AI NODE"
@@ -270,7 +270,7 @@ Student submission: ${submission}
         </>
       )}
 
-      <Handle type="source" position={Position.Bottom} />
+      {!standalone && <Handle type="source" position={Position.Bottom} />}
     </div>
   )
 }

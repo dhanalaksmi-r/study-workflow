@@ -83,7 +83,7 @@ function ResourceCard({ resource, index }) {
   )
 }
 
-export default function ResourceCuratorNode({ id, data }) {
+export default function ResourceCuratorNode({ id, data, standalone }) {
   const { nodeOutputs, setOutput, setStatus, nodeStatus, activeTopic } = useWorkflowStore()
 
   const existingOutput = nodeOutputs[id]
@@ -173,7 +173,7 @@ export default function ResourceCuratorNode({ id, data }) {
       fontFamily: 'sans-serif',
       boxShadow: '0 4px 14px rgba(0,0,0,0.07)',
     }}>
-      <Handle type="target" position={Position.Top} />
+      {!standalone && <Handle type="target" position={Position.Top} />}
 
       <NodeHeader
         badge="AI NODE"
@@ -262,7 +262,7 @@ export default function ResourceCuratorNode({ id, data }) {
         </>
       )}
 
-      <Handle type="source" position={Position.Bottom} />
+      {!standalone && <Handle type="source" position={Position.Bottom} />}
     </div>
   )
 }

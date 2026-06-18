@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { useWorkflowStore } from '../../store/workflowStore'
 
-export default function ConditionNode({ id, data }) {
+export default function ConditionNode({ id, data, standalone }) {
   const {
     nodeOutputs, setOutput, setStatus, nodeStatus,
     lastScore, edges, setEdges
@@ -74,7 +74,7 @@ export default function ConditionNode({ id, data }) {
       borderRadius: 12, padding: 16, width: 260,
       fontFamily: 'sans-serif', boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
     }}>
-      <Handle type="target" position={Position.Top} />
+      {!standalone && <Handle type="target" position={Position.Top} />}
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -163,14 +163,18 @@ export default function ConditionNode({ id, data }) {
       )}
 
       {/* Two named source handles — wired to different edges in WorkflowCanvas */}
-      <Handle
-        type="source" id="retry" position={Position.Bottom}
-        style={{ left: '25%', background: '#E24B4A' }}
-      />
-      <Handle
-        type="source" id="pass" position={Position.Bottom}
-        style={{ left: '75%', background: '#1D9E75' }}
-      />
+      {!standalone && (
+        <>
+          <Handle
+            type="source" id="retry" position={Position.Bottom}
+            style={{ left: '25%', background: '#E24B4A' }}
+          />
+          <Handle
+            type="source" id="pass" position={Position.Bottom}
+            style={{ left: '75%', background: '#1D9E75' }}
+          />
+        </>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#aaa', marginTop: 4 }}>
         <span>↙ retry</span>
         <span>pass ↘</span>

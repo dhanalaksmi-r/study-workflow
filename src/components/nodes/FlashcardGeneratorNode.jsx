@@ -85,7 +85,7 @@ function FlashCard({ card, index }) {
 }
 
 // ─── Main node ────────────────────────────────────────────────────────────────
-export default function FlashcardGeneratorNode({ id, data }) {
+export default function FlashcardGeneratorNode({ id, data, standalone }) {
   const { nodeOutputs, setOutput, setStatus, nodeStatus, activeTopic } = useWorkflowStore()
 
   const existingOutput = nodeOutputs[id]
@@ -162,7 +162,7 @@ export default function FlashcardGeneratorNode({ id, data }) {
       fontFamily: 'sans-serif',
       boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
     }}>
-      <Handle type="target" position={Position.Top} />
+      {!standalone && <Handle type="target" position={Position.Top} />}
 
       <NodeHeader
       badge="AI NODE"                                    // or omit for non-AI nodes
@@ -265,7 +265,7 @@ export default function FlashcardGeneratorNode({ id, data }) {
         </div>
       )}
       </>)}
-      <Handle type="source" position={Position.Bottom} />
+      {!standalone && <Handle type="source" position={Position.Bottom} />}
     </div>
   )
 }

@@ -20,7 +20,7 @@ Only include subtopics from questions the student got WRONG.
 If the student got everything right, return: weakTopics: [], overallGap: "No significant gaps found", shouldRetry: false.
 Return ONLY valid JSON object, no extra text, no markdown fences.`
 
-export default function WeakSpotDetectorNode({ id, data }) {
+export default function WeakSpotDetectorNode({ id, data, standalone }) {
   const {
     nodeOutputs, setOutput, setStatus, nodeStatus,
     setActiveTopic, setWeakTopics, resetNodeOutput,
@@ -130,7 +130,7 @@ export default function WeakSpotDetectorNode({ id, data }) {
       borderRadius: 12, padding: 16, width: 300,
       fontFamily: 'sans-serif', boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
     }}>
-      <Handle type="target" position={Position.Top} />
+      {!standalone && <Handle type="target" position={Position.Top} />}
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -239,7 +239,7 @@ export default function WeakSpotDetectorNode({ id, data }) {
         </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} />
+      {!standalone && <Handle type="source" position={Position.Bottom} />}
     </div>
   )
 }
