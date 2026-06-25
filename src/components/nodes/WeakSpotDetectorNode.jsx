@@ -1,245 +1,174 @@
 // src/components/nodes/WeakSpotDetectorNode.jsx
 import { useState } from 'react'
-import { Handle, Position } from '@xyflow/react'
-import { useWorkflowStore } from '../../store/workflowStore'
-import { callGeminiJSON } from '../../api/geminiApi'
 
-// ─── System prompt ────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are a learning gap analyser for students.
-You will receive a topic and a list of quiz questions with the student's answer and the correct answer for each.
+const callGemini = async (systemPrompt, userMessage) => {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage }
+      ],
+      temperature: 0.7,
+      max_tokens: 1000
+    })
+  })
+  
+  const data = await response.json()
+  if (data.error) throw new Error(data.error.message)
+  return data.choices[0].message.content
+}
 
-Return a JSON object with:
-- weakTopics: array of objects, each with:
-  - subtopic: string (a specific concept the student is weak on)
-  - confidence: number 0-100 (how confident you are this is a real gap)
-  - recommendation: string (one sentence on what to study to fix this gap)
-- overallGap: string (one sentence summary of the main weakness)
-- shouldRetry: boolean (true if at least one weak topic has confidence >= 50)
-
-Only include subtopics from questions the student got WRONG.
-If the student got everything right, return: weakTopics: [], overallGap: "No significant gaps found", shouldRetry: false.
-Return ONLY valid JSON object, no extra text, no markdown fences.`
-
-export default function WeakSpotDetectorNode({ id, data, standalone }) {
-  const {
-    nodeOutputs, setOutput, setStatus, nodeStatus,
-    setActiveTopic, setWeakTopics, resetNodeOutput,
-    incrementRetry, retryCount,
-  } = useWorkflowStore()
-
-  const existingOutput = nodeOutputs[id]
-  const [result, setResult] = useState(existingOutput?.result || null)
+export default function WeakSpotDetectorNode({ id, topic, quizAnswers, quizQuestions, onLoopBack }) {
   const [loading, setLoading] = useState(false)
+  const [gap, setGap] = useState(null)
   const [error, setError] = useState('')
-  const [loopedBack, setLoopedBack] = useState(false)
 
-  const status = nodeStatus[id] || 'pending'
-
-  // ─── Find the submitted quiz to analyse ───────────────────────────────────
-  // Search all node outputs for one that has `questions` + `submitted: true`
-  const quizEntry = Object.entries(nodeOutputs).find(
-    ([, out]) => out?.questions && out?.submitted
-  )
-  const quizOutput = quizEntry?.[1]
-  const quizNodeId = quizEntry?.[0]
-
-  // Find the Resource Curator node — used for loop-back
-  const resourceEntry = Object.entries(nodeOutputs).find(
-    ([, out]) => out?.resources !== undefined
-  )
-  const resourceNodeId = resourceEntry?.[0]
-
-  // Find the Flashcard Generator node — also reset on loop-back
-  const flashcardEntry = Object.entries(nodeOutputs).find(
-    ([, out]) => out?.cards !== undefined
-  )
-  const flashcardNodeId = flashcardEntry?.[0]
-
-  // ─── AI analysis ────────────────────────────────────────────────────────────
-  async function analyse() {
-    if (!quizOutput) return
+  async function analyzeGap() {
     setLoading(true)
     setError('')
-    setStatus(id, 'running')
 
     try {
-      const reviewItems = quizOutput.questions.map((q, i) => ({
-        question: q.question,
-        studentAnswer: q.options[quizOutput.answers[i]] ?? 'No answer',
-        correctAnswer: q.options[q.correctIndex],
-        isCorrect: quizOutput.answers[i] === q.correctIndex,
-      }))
+      if (!quizQuestions || !quizAnswers) {
+        throw new Error('Quiz data not available')
+      }
 
-      const userMessage = JSON.stringify({
-        topic: quizOutput.topic,
-        items: reviewItems,
+      // Identify wrong answers
+      const wrongAnswers = []
+      quizQuestions.forEach((q, i) => {
+        if (quizAnswers[i] !== q.correctIndex) {
+          wrongAnswers.push({
+            question: q.question,
+            studentAnswer: q.options[quizAnswers[i]],
+            correctAnswer: q.options[q.correctIndex],
+            explanation: q.explanation
+          })
+        }
       })
 
-      const res = await callGeminiJSON(SYSTEM_PROMPT, userMessage)
-      setResult(res)
-      setOutput(id, { result: res, topic: quizOutput.topic })
-      setWeakTopics(res.weakTopics || [])
-      setStatus(id, 'done')
-    } catch (e) {
-      console.error(e)
-      setError(e.message || 'Failed to analyse weak spots.')
-      setStatus(id, 'failed')
+      if (wrongAnswers.length === 0) {
+        throw new Error('No wrong answers found')
+      }
+
+      // AI analyzes the gap
+      const systemPrompt = `You are an expert learning analyst. Given a student's wrong quiz answers, identify the most critical knowledge gap.
+Return ONLY a valid JSON object with this format:
+{
+  "subtopic": "specific topic name",
+  "confidence": 85,
+  "recommendation": "brief recommendation on how to improve"
+}
+Focus on the PRIMARY gap that caused the most wrong answers.`
+
+      const userMessage = `Topic: ${topic}
+
+Wrong answers:
+${wrongAnswers.map((w, i) => `${i + 1}. Q: ${w.question}
+   Student said: ${w.studentAnswer}
+   Correct: ${w.correctAnswer}
+   Explanation: ${w.explanation}`).join('\n\n')}`
+
+      const response = await callGemini(systemPrompt, userMessage)
+      const cleaned = response.replace(/```json\n?|\n?```/g, '').trim()
+      const parsed = JSON.parse(cleaned)
+      setGap(parsed)
+    } catch (err) {
+      setError(err.message)
+      console.error(err)
     } finally {
       setLoading(false)
     }
   }
 
-  // ─── Loop back: send a focused topic back to Resource Curator ────────────────
-  function loopBack(subtopic) {
-    if (!resourceNodeId) return
-
-    // 1. Update the global active topic — every node syncs to this
-    setActiveTopic(subtopic)
-
-    // 2. Reset Resource Curator so it re-runs with the focused subtopic
-    resetNodeOutput(resourceNodeId, { topic: subtopic, resources: [], reviewed: false })
-
-    // 3. Reset Flashcard Generator too, if it exists
-    if (flashcardNodeId) {
-      resetNodeOutput(flashcardNodeId, { topic: subtopic, cards: [], reviewed: false })
-    }
-
-    // 4. Reset the Quiz so the student retakes it on the new subtopic
-    if (quizNodeId) {
-      resetNodeOutput(quizNodeId, {
-        topic: subtopic, questions: [], answers: {}, submitted: false, score: null
-      })
-    }
-
-    incrementRetry()
-    setLoopedBack(true)
-  }
-
-  const statusColors = {
-    pending: { bg: '#f5f5f5', color: '#888' },
-    running: { bg: '#FAEEDA', color: '#633806' },
-    done:    { bg: '#E1F5EE', color: '#085041' },
-    failed:  { bg: '#FAECE7', color: '#712B13' },
-  }
-  const sc = statusColors[status]
-
   return (
     <div style={{
       background: '#fff',
-      border: `1.5px solid ${status === 'done' ? '#EF9F27' : '#F5C99B'}`,
-      borderRadius: 12, padding: 16, width: 300,
-      fontFamily: 'sans-serif', boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+      borderRadius: 14,
+      border: '2px solid #7F77DD',
+      padding: 20,
+      width: '100%',
+      maxWidth: 520
     }}>
-      {!standalone && <Handle type="target" position={Position.Top} />}
+      <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>
+        🔍 Analyse Gaps
+      </h3>
+      <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
+        AI identifies exactly what to revisit.
+      </p>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            background: '#FAEEDA', color: '#633806',
-            borderRadius: 6, padding: '3px 10px', fontSize: 10, fontWeight: 500,
-          }}>
-            AI NODE
-          </span>
-          <span style={{ fontWeight: 600, fontSize: 13, color: '#1a1a1a' }}>
-            Weak Spot Detector
-          </span>
-        </div>
-        <span style={{
-          fontSize: 10, padding: '2px 8px', borderRadius: 6,
-          background: sc.bg, color: sc.color, fontWeight: 500, textTransform: 'uppercase'
+      {error && (
+        <div style={{
+          background: '#FAECE7', border: '1px solid #F0997B',
+          borderRadius: 10, padding: 12, marginBottom: 16,
+          fontSize: 13, color: '#712B13'
         }}>
-          {status}
-        </span>
-      </div>
-
-      {/* No quiz yet */}
-      {!quizOutput && (
-        <p style={{ fontSize: 12, color: '#aaa', lineHeight: 1.6 }}>
-          Waiting for a submitted quiz to analyse. Complete the Quiz Generator node first.
-        </p>
+          ⚠ {error}
+        </div>
       )}
 
-      {/* Analyse button */}
-      {quizOutput && !result && (
+      {!gap ? (
         <button
-          onClick={analyse}
+          onClick={analyzeGap}
           disabled={loading}
           style={{
-            width: '100%', padding: '8px 0', borderRadius: 8, border: 'none',
+            width: '100%',
+            padding: 12,
+            borderRadius: 10,
+            border: 'none',
+            background: '#7F77DD',
+            color: '#fff',
+            fontWeight: 600,
             cursor: loading ? 'not-allowed' : 'pointer',
-            background: loading ? '#ccc' : '#EF9F27',
-            color: '#fff', fontWeight: 500, fontSize: 13,
+            opacity: loading ? 0.7 : 1
           }}
         >
-          {loading ? 'Analysing your answers...' : `Analyse quiz (score: ${quizOutput.score}%)`}
+          {loading ? 'Analysing...' : 'Analyse my weak spot'}
         </button>
-      )}
-
-      {/* Error */}
-      {error && (
-        <p style={{ color: '#E24B4A', fontSize: 12, marginTop: 8, lineHeight: 1.5 }}>⚠ {error}</p>
-      )}
-
-      {/* Results */}
-      {result && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      ) : (
+        <div>
           <div style={{
-            background: '#FAEEDA', borderRadius: 8, padding: '8px 12px',
-            fontSize: 12, color: '#633806', lineHeight: 1.5,
+            background: '#FFF3E0',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 16,
+            border: '1px solid #EF9F27'
           }}>
-            {result.overallGap}
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#633806', marginBottom: 8 }}>
+              🎯 DETECTED GAP
+            </p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: '#633806', marginBottom: 8 }}>
+              {gap.subtopic}
+            </p>
+            <p style={{ fontSize: 12, color: '#854F0B', lineHeight: 1.6, marginBottom: 12 }}>
+              {gap.recommendation}
+            </p>
+            <p style={{ fontSize: 11, color: '#854F0B' }}>
+              AI Confidence: {gap.confidence}%
+            </p>
           </div>
 
-          {result.weakTopics?.length > 0 ? (
-            result.weakTopics.map((w, i) => (
-              <div key={i} style={{
-                border: '1px solid #F5C99B', borderRadius: 8,
-                padding: '10px 12px', background: '#FFFBF5',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#712B13' }}>{w.subtopic}</span>
-                  <span style={{ fontSize: 10, color: '#aaa' }}>{w.confidence}% confidence</span>
-                </div>
-                <p style={{ fontSize: 11, color: '#888', marginBottom: 8, lineHeight: 1.5 }}>
-                  {w.recommendation}
-                </p>
-                {!loopedBack && (
-                  <button
-                    onClick={() => loopBack(w.subtopic)}
-                    style={{
-                      width: '100%', padding: '6px 0', borderRadius: 6,
-                      border: '1px solid #7F77DD', background: '#fff',
-                      color: '#7F77DD', fontWeight: 500, fontSize: 11, cursor: 'pointer',
-                    }}
-                  >
-                    ↺ Loop back to Resource Curator with this topic
-                  </button>
-                )}
-              </div>
-            ))
-          ) : (
-            <div style={{
-              background: '#E1F5EE', borderRadius: 8, padding: '10px 12px',
-              fontSize: 12, color: '#085041', textAlign: 'center',
-            }}>
-              ✓ No significant gaps found
-            </div>
-          )}
-
-          {loopedBack && (
-            <div style={{
-              background: '#EEEDFE', borderRadius: 8, padding: '8px 12px',
-              fontSize: 12, color: '#3C3489', textAlign: 'center', lineHeight: 1.5,
-            }}>
-              ↺ Sent back — scroll up to Resource Curator, the topic is now
-              focused on the gap (retry #{retryCount})
-            </div>
-          )}
+          <button
+            onClick={() => onLoopBack?.(gap.subtopic)}
+            style={{
+              width: '100%',
+              padding: 12,
+              borderRadius: 10,
+              border: 'none',
+              background: '#7F77DD',
+              color: '#fff',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            ↺ Loop Back → Focus on {gap.subtopic}
+          </button>
         </div>
       )}
-
-      {!standalone && <Handle type="source" position={Position.Bottom} />}
     </div>
   )
 }

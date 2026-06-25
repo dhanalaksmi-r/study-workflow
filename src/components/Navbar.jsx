@@ -1,13 +1,24 @@
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 
 export default function Navbar({ title }) {
   const { role, logout } = useAuth()
+  const navigate = useNavigate()
 
   const roleColors = {
     teacher: { bg: '#7F77DD', label: 'Teacher' },
     student: { bg: '#1D9E75', label: 'Student' },
   }
   const rc = roleColors[role] || roleColors.student
+
+  async function handleLogout() {
+    try {
+      await logout()
+      navigate('/', { replace: true })
+    } catch (err) {
+      console.error('Logout error:', err)
+    }
+  }
 
   return (
     <div style={{
@@ -47,7 +58,7 @@ export default function Navbar({ title }) {
           {rc.label}
         </span>
         <button
-          onClick={logout}
+          onClick={handleLogout}
           style={{
             padding: '6px 14px', borderRadius: 8, cursor: 'pointer',
             border: '1px solid #eee', background: '#fafafa',

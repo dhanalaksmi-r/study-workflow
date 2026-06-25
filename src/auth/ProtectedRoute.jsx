@@ -1,19 +1,45 @@
-import { Navigate } from 'react-router-dom'
+// src/auth/ProtectedRoute.jsx
 import { useAuth } from './useAuth'
+import { Navigate } from 'react-router-dom'
 
 export default function ProtectedRoute({ children, requiredRole }) {
-  const { role, isLoggedIn } = useAuth()
+  const { user, role, loading } = useAuth()
 
-  // Not logged in at all → go to login
-  if (!isLoggedIn) {
+  console.log('ProtectedRoute check:', { user: user?.email, role, requiredRole, loading })
+
+  // Still loading auth
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        fontSize: 16,
+      }}>
+        Loading...
+      </div>
+    )
+  }
+
+  // No user logged in
+  if (!user) {
+    console.log('No user, redirecting to login')
     return <Navigate to="/" replace />
   }
 
-  // Wrong role → go to their correct page
+  // User logged in but role doesn't match
   if (requiredRole && role !== requiredRole) {
-    return <Navigate to={`/${role}`} replace />
+    console.log('Role mismatch. Required:', requiredRole, 'Got:', role)
+    // Redirect to the right dashboard
+    if (role === 'teacher') {
+      return <Navigate to="/teacher" replace />
+    } else if (role === 'student') {
+      return <Navigate to="/student" replace />
+    }
+    return <Navigate to="/" replace />
   }
 
-  // All good → show the page
+  // All good — render children
   return children
 }

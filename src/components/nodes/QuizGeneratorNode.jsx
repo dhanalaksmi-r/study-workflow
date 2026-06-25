@@ -1,335 +1,365 @@
-
 // src/components/nodes/QuizGeneratorNode.jsx
-import { useState, useEffect } from 'react'
-import { Handle, Position } from '@xyflow/react'
-import { useWorkflowStore } from '../../store/workflowStore'
-import { callGeminiJSON } from '../../api/geminiApi'
-import NodeHeader from './shared/NodeHeader'
-import ScrollArea from './shared/ScrollArea'   // only if the node has a list
-// ─── System prompt ────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are a quiz generator for students.
-Given a topic, return exactly 5 multiple choice questions as a JSON array.
-Each question has:
-- question: string
-- options: array of exactly 4 strings
-- correctIndex: number (0-3, index of the correct option)
-- explanation: string (1 sentence explaining why the correct answer is right)
+import { useState } from 'react'
 
-Rules:
-- Mix difficulty: include recall, application, and analysis questions
-- Make incorrect options plausible, not obviously wrong
-- Cover different aspects/subtopics of the main topic (this matters for gap analysis later)
-- Return ONLY valid JSON array, no extra text, no markdown fences`
-
-// ─── Single question ──────────────────────────────────────────────────────────
-function QuestionBlock({ q, index, selected, onSelect, submitted }) {
-  return (
-    <div style={{
-      border: '1px solid #eee', borderRadius: 8,
-      padding: '12px 14px', background: '#fafafa',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
-        <span style={{
-          width: 20, height: 20, borderRadius: '50%',
-          background: '#1D9E75', color: '#fff',
-          fontSize: 10, fontWeight: 600,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0, marginTop: 1,
-        }}>
-          {index + 1}
-        </span>
-        <p style={{ fontSize: 13, fontWeight: 500, color: '#1a1a1a', lineHeight: 1.5 }}>
-          {q.question}
-        </p>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginLeft: 28 }}>
-        {q.options.map((opt, i) => {
-          const isSelected = selected === i
-          const isCorrect = i === q.correctIndex
-          const showResult = submitted
-
-          let bg = '#fff', border = '#ddd', color = '#444'
-          if (showResult && isCorrect) {
-            bg = '#E1F5EE'; border = '#5DCAA5'; color = '#085041'
-          } else if (showResult && isSelected && !isCorrect) {
-            bg = '#FAECE7'; border = '#F0997B'; color = '#712B13'
-          } else if (!showResult && isSelected) {
-            bg = '#EEEDFE'; border = '#AFA9EC'; color = '#3C3489'
-          }
-
-          return (
-            <button
-              key={i}
-              onClick={() => !submitted && onSelect(i)}
-              disabled={submitted}
-              style={{
-                textAlign: 'left', padding: '8px 12px', borderRadius: 7,
-                border: `1px solid ${border}`, background: bg, color,
-                fontSize: 12, cursor: submitted ? 'default' : 'pointer',
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}
-            >
-              <span style={{
-                width: 16, height: 16, borderRadius: '50%',
-                border: `1.5px solid ${border}`, flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 9, fontWeight: 700,
-              }}>
-                {showResult && isCorrect ? '✓' : showResult && isSelected && !isCorrect ? '✗' : ''}
-              </span>
-              {opt}
-            </button>
-          )
-        })}
-      </div>
-
-      {submitted && (
-        <p style={{ fontSize: 11, color: '#888', marginTop: 8, marginLeft: 28, lineHeight: 1.5 }}>
-          💡 {q.explanation}
-        </p>
-      )}
-    </div>
-  )
+const callGemini = async (systemPrompt, userMessage) => {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000
+    })
+  })
+  
+  const data = await response.json()
+  if (data.error) throw new Error(data.error.message)
+  return data.choices[0].message.content
 }
 
-// ─── Main node ────────────────────────────────────────────────────────────────
-export default function QuizGeneratorNode({ id, data, standalone }) {
-  const { nodeOutputs, setOutput, setStatus, nodeStatus, activeTopic, setScore } = useWorkflowStore()
-
-  const existingOutput = nodeOutputs[id]
-  const [topic, setTopic] = useState(existingOutput?.topic || activeTopic || data?.topic || '')
-  const [questions, setQuestions] = useState(existingOutput?.questions || [])
-  const [answers, setAnswers] = useState(existingOutput?.answers || {})
+export default function QuizGeneratorNode({ id, topic, onComplete }) {
+  const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [submitted, setSubmitted] = useState(existingOutput?.submitted || false)
-  const [score, setLocalScore] = useState(existingOutput?.score ?? null)
-  const [collapsed, setCollapsed] = useState(false)
-  const status = nodeStatus[id] || 'pending'
+  const [answers, setAnswers] = useState({})
+  const [submitted, setSubmitted] = useState(false)
+  const [score, setScore] = useState(null)
 
-  // Auto-sync topic from StartNode
-  useEffect(() => {
-    if (activeTopic && !submitted) {
-      setTopic(activeTopic)
-    }
-  }, [activeTopic, submitted])
-
-  // Re-sync local state whenever this node's output is reset externally
-  useEffect(() => {
-  const out = nodeOutputs[id]
-  if (out) {
-    setQuestions(out.questions ?? [])
-    setAnswers(out.answers ?? {})
-    setSubmitted(out.submitted ?? false)
-    setLocalScore(out.score ?? null)
-    if (out.topic) setTopic(out.topic)
-  }
-  }, [nodeOutputs[id]])
-
-  async function generate() {
-    if (!topic.trim()) return
+  async function generateQuiz() {
     setLoading(true)
     setError('')
-    setQuestions([])
-    setAnswers({})
     setSubmitted(false)
-    setLocalScore(null)
-    setStatus(id, 'running')
+    setAnswers({})
+    setScore(null)
 
     try {
-      const result = await callGeminiJSON(SYSTEM_PROMPT, `Topic: ${topic}`)
-      setQuestions(result)
-      setOutput(id, { topic, questions: result, answers: {}, submitted: false, score: null })
-      setStatus(id, 'done')
-    } catch (e) {
-      console.error(e)
-      setError(e.message || 'Failed to generate quiz.')
-      setStatus(id, 'failed')
+      if (!topic) {
+        throw new Error('Topic not set')
+      }
+
+      const systemPrompt = `You are an expert educator. Create 5 multiple choice questions for the given topic.
+Return ONLY a valid JSON array with 5 objects in this format:
+[
+  {
+    "question": "...",
+    "options": ["option1", "option2", "option3", "option4"],
+    "correctIndex": 0,
+    "explanation": "..."
+  },
+  ...
+]
+The correctIndex is 0-3 indicating which option is correct (0-based index).`
+
+      const response = await callGemini(systemPrompt, `Create a quiz for: ${topic}`)
+      const cleaned = response.replace(/```json\n?|\n?```/g, '').trim()
+      const parsedQuestions = JSON.parse(cleaned)
+      setQuestions(parsedQuestions)
+      setAnswers({})
+    } catch (err) {
+      setError(err.message)
+      console.error(err)
     } finally {
       setLoading(false)
     }
   }
 
-  function selectAnswer(qIndex, optIndex) {
-    setAnswers(prev => ({ ...prev, [qIndex]: optIndex }))
+  function handleAnswer(questionIndex, optionIndex) {
+    if (!submitted) {
+      setAnswers(prev => ({
+        ...prev,
+        [questionIndex]: optionIndex
+      }))
+    }
   }
 
   function submitQuiz() {
+    if (Object.keys(answers).length !== questions.length) {
+      setError('Please answer all questions before submitting')
+      return
+    }
+
+    // Calculate score
     let correct = 0
     questions.forEach((q, i) => {
-      if (answers[i] === q.correctIndex) correct++
+      if (answers[i] === q.correctIndex) {
+        correct++
+      }
     })
-    const pct = Math.round((correct / questions.length) * 100)
 
+    const percentage = Math.round((correct / questions.length) * 100)
+    setScore({ correct, total: questions.length, percentage })
     setSubmitted(true)
-    setLocalScore(pct)
-
-    // Store score globally — ConditionNode (Day 8) reads this
-    setScore(id, pct)
-
-    setOutput(id, {
-      topic, questions, answers, submitted: true, score: pct,
-      correctCount: correct, totalCount: questions.length
-    })
   }
 
   function retakeQuiz() {
     setAnswers({})
+    setScore(null)
     setSubmitted(false)
-    setLocalScore(null)
-    setOutput(id, { topic, questions, answers: {}, submitted: false, score: null })
   }
 
-  const allAnswered = questions.length > 0 &&
-    Object.keys(answers).length === questions.length
+  if (questions.length === 0) {
+    return (
+      <div style={{
+        background: '#fff',
+        borderRadius: 14,
+        border: '2px solid #7F77DD',
+        padding: 20,
+        width: '100%',
+        maxWidth: 520
+      }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>
+          📝 Take the Quiz
+        </h3>
+        <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
+          Test your understanding of <strong>{topic}</strong>
+        </p>
 
-  const statusColors = {
-    pending: { bg: '#f5f5f5', color: '#888' },
-    running: { bg: '#FAEEDA', color: '#633806' },
-    done:    { bg: '#E1F5EE', color: '#085041' },
-    failed:  { bg: '#FAECE7', color: '#712B13' },
+        {error && (
+          <div style={{
+            background: '#FAECE7', border: '1px solid #F0997B',
+            borderRadius: 10, padding: 12, marginBottom: 16,
+            fontSize: 13, color: '#712B13'
+          }}>
+            ⚠ {error}
+          </div>
+        )}
+
+        <button
+          onClick={generateQuiz}
+          disabled={loading}
+          style={{
+            width: '100%',
+            padding: 12,
+            borderRadius: 10,
+            border: 'none',
+            background: '#7F77DD',
+            color: '#fff',
+            fontWeight: 600,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.7 : 1
+          }}
+        >
+          {loading ? 'Generating quiz...' : 'Generate quiz'}
+        </button>
+      </div>
+    )
   }
-  const sc = statusColors[status]
-
-  // Score color
-  const scoreColor = score === null ? '#888'
-    : score >= 70 ? '#1D9E75'
-    : '#E24B4A'
 
   return (
     <div style={{
       background: '#fff',
-      border: `1.5px solid ${status === 'done' ? '#5DCAA5' : '#7FBDA8'}`,
-      borderRadius: 12,
-      padding: 16,
-      width: 380,
-      fontFamily: 'sans-serif',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+      borderRadius: 14,
+      border: '2px solid #7F77DD',
+      padding: 20,
+      width: '100%',
+      maxWidth: 520,
+      maxHeight: '70vh',
+      overflowY: 'auto',
+      display: 'flex',
+      flexDirection: 'column'
     }}>
-      {!standalone && <Handle type="target" position={Position.Top} />}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+        position: 'sticky',
+        top: 0,
+        background: '#fff',
+        paddingBottom: 12,
+        borderBottom: '1px solid #eee'
+      }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>
+          📝 Quiz
+        </h3>
+        {score && (
+          <div style={{
+            fontSize: 24,
+            fontWeight: 800,
+            color: score.percentage >= 70 ? '#1D9E75' : '#E24B4A'
+          }}>
+            {score.percentage}%
+          </div>
+        )}
+      </div>
 
-      {/* Header */}
-      <NodeHeader
-      badge="AI NODE"                                    // or omit for non-AI nodes
-      badgeColor={{ bg: '#E1F5EE', color: '#085041' }}   // match node's color theme
-      title="Quiz Generator"                         // node's title
-      status={status}
-      statusColors={statusColors[status]}
-      collapsed={collapsed}
-      onToggleCollapse={() => setCollapsed(c => !c)}
-      />
-
-      {/* Topic input */}
-      {!collapsed && (
-        <>
-      {questions.length === 0 && (
-        <>
-          <label style={{ fontSize: 11, color: '#888', display: 'block', marginBottom: 4 }}>
-            Topic
-          </label>
-          <input
-            value={topic}
-            onChange={e => setTopic(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && generate()}
-            placeholder="e.g. React Hooks, Photosynthesis..."
-            style={{
-              width: '100%', padding: '8px 10px', borderRadius: 8,
-              border: '1px solid #ddd', fontSize: 13, marginBottom: 10,
-              boxSizing: 'border-box',
-            }}
-          />
-
-          <button
-            onClick={generate}
-            disabled={loading || !topic.trim()}
-            style={{
-              width: '100%', padding: '8px 0', borderRadius: 8,
-              border: 'none', cursor: loading || !topic.trim() ? 'not-allowed' : 'pointer',
-              background: loading || !topic.trim() ? '#ccc' : '#1D9E75',
-              color: '#fff', fontWeight: 500, fontSize: 13, marginBottom: 12,
-            }}
-          >
-            {loading ? 'Generating quiz...' : 'Generate quiz (5 questions)'}
-          </button>
-        </>
-      )}
-
-      {/* Error */}
       {error && (
-        <p style={{ color: '#E24B4A', fontSize: 12, marginBottom: 10, lineHeight: 1.5 }}>
-          ⚠ {error}
-        </p>
-      )}
-
-      {/* Score banner (after submit) */}
-      {submitted && score !== null && (
         <div style={{
-          background: score >= 70 ? '#E1F5EE' : '#FAECE7',
-          border: `1px solid ${score >= 70 ? '#5DCAA5' : '#F0997B'}`,
-          borderRadius: 8, padding: '12px 14px', marginBottom: 12,
-          textAlign: 'center',
+          background: '#FAECE7', border: '1px solid #F0997B',
+          borderRadius: 10, padding: 12, marginBottom: 16,
+          fontSize: 13, color: '#712B13'
         }}>
-          <p style={{ fontSize: 22, fontWeight: 700, color: scoreColor, marginBottom: 2 }}>
-            {score}%
-          </p>
-          <p style={{ fontSize: 12, color: score >= 70 ? '#085041' : '#712B13' }}>
-            {score >= 70
-              ? '✓ Great job — you can advance to the next topic'
-              : '⚠ Below 70% — workflow will route you back to review weak areas'}
-          </p>
+          ⚠ {error}
         </div>
       )}
 
-      {/* Questions */}
-      {questions.length > 0 && (
-        <ScrollArea maxHeight={400}>
-          {questions.map((q, i) => (
-            <QuestionBlock
-              key={i}
-              q={q}
-              index={i}
-              selected={answers[i]}
-              onSelect={(opt) => selectAnswer(i, opt)}
-              submitted={submitted}
-            />
+      {!submitted ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {questions.map((q, qIndex) => (
+            <div key={qIndex} style={{
+              borderBottom: qIndex < questions.length - 1 ? '1px solid #eee' : 'none',
+              paddingBottom: 16
+            }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 12 }}>
+                Q{qIndex + 1}: {q.question}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {q.options.map((option, oIndex) => (
+                  <label key={oIndex} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #ddd',
+                    cursor: 'pointer',
+                    background: answers[qIndex] === oIndex ? '#EEEDFE' : '#fff'
+                  }}>
+                    <input
+                      type="radio"
+                      name={`q${qIndex}`}
+                      checked={answers[qIndex] === oIndex}
+                      onChange={() => handleAnswer(qIndex, oIndex)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: 13, color: '#1a1a1a' }}>
+                      {option}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
           ))}
-        </ScrollArea>
-      )}
 
-      {/* Submit / Retake buttons */}
-      {questions.length > 0 && !submitted && (
-        <button
-          onClick={submitQuiz}
-          disabled={!allAnswered}
-          style={{
-            width: '100%', padding: '8px 0', borderRadius: 8,
-            border: 'none', cursor: allAnswered ? 'pointer' : 'not-allowed',
-            background: allAnswered ? '#1D9E75' : '#ccc',
-            color: '#fff', fontWeight: 500, fontSize: 14,
-          }}
-        >
-          {allAnswered
-            ? 'Submit quiz'
-            : `Answer all questions (${Object.keys(answers).length}/${questions.length})`}
-        </button>
-      )}
+          <button
+            onClick={submitQuiz}
+            disabled={Object.keys(answers).length !== questions.length}
+            style={{
+              width: '100%',
+              padding: 12,
+              borderRadius: 10,
+              border: 'none',
+              background: Object.keys(answers).length === questions.length ? '#7F77DD' : '#ccc',
+              color: '#fff',
+              fontWeight: 600,
+              cursor: Object.keys(answers).length === questions.length ? 'pointer' : 'not-allowed',
+              marginTop: 8
+            }}
+          >
+            Submit Quiz
+          </button>
+        </div>
+      ) : (
+        <div>
+          <div style={{
+            background: score.percentage >= 70 ? '#E1F5EE' : '#FAECE7',
+            borderRadius: 12,
+            padding: 20,
+            marginBottom: 16,
+            textAlign: 'center',
+            border: `1px solid ${score.percentage >= 70 ? '#5DCAA5' : '#F0997B'}`
+          }}>
+            <p style={{
+              fontSize: 12,
+              color: score.percentage >= 70 ? '#0F6E56' : '#712B13',
+              fontWeight: 600,
+              marginBottom: 8
+            }}>
+              {score.percentage >= 70 ? 'PASS ✓' : 'NEEDS IMPROVEMENT'}
+            </p>
+            <p style={{
+              fontSize: 20,
+              fontWeight: 800,
+              color: score.percentage >= 70 ? '#1D9E75' : '#E24B4A',
+              marginBottom: 4
+            }}>
+              {score.correct}/{score.total}
+            </p>
+            <p style={{
+              fontSize: 13,
+              color: score.percentage >= 70 ? '#0F6E56' : '#712B13'
+            }}>
+              {score.percentage}% correct
+            </p>
+          </div>
 
-      {submitted && (
-        <button
-          onClick={retakeQuiz}
-          style={{
-            width: '100%', padding: '8px 0', borderRadius: 8,
-            border: '1.5px solid #AFA9EC', background: '#fff',
-            color: '#7F77DD', fontWeight: 500, fontSize: 14, cursor: 'pointer',
-          }}
-        >
-          Retake quiz
-        </button>
+          {/* Show answers review */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+            {questions.map((q, qIndex) => {
+              const isCorrect = answers[qIndex] === q.correctIndex
+              return (
+                <div key={qIndex} style={{
+                  background: isCorrect ? '#E1F5EE' : '#FAECE7',
+                  borderRadius: 10,
+                  padding: 12,
+                  border: `1px solid ${isCorrect ? '#5DCAA5' : '#F0997B'}`
+                }}>
+                  <p style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: isCorrect ? '#085041' : '#712B13',
+                    marginBottom: 6
+                  }}>
+                    Q{qIndex + 1}: {isCorrect ? '✓' : '✗'}
+                  </p>
+                  <p style={{ fontSize: 12, color: '#1a1a1a', marginBottom: 6 }}>
+                    Your answer: <strong>{q.options[answers[qIndex]]}</strong>
+                  </p>
+                  {!isCorrect && (
+                    <p style={{ fontSize: 12, color: '#1a1a1a', marginBottom: 6 }}>
+                      Correct: <strong>{q.options[q.correctIndex]}</strong>
+                    </p>
+                  )}
+                  <p style={{ fontSize: 11, color: isCorrect ? '#0F6E56' : '#712B13' }}>
+                    {q.explanation}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+
+          {score.percentage >= 70 ? (
+            <button
+              onClick={() => onComplete?.({ score: score.percentage, questions, answers })}
+              style={{
+                width: '100%',
+                padding: 12,
+                borderRadius: 10,
+                border: 'none',
+                background: '#1D9E75',
+                color: '#fff',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Continue →
+            </button>
+          ) : (
+            <button
+              onClick={() => onComplete?.({ score: score.percentage, questions, answers })}
+              style={{
+                width: '100%',
+                padding: 12,
+                borderRadius: 10,
+                border: 'none',
+                background: '#EF9F27',
+                color: '#fff',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Check Score →
+            </button>
+          )}
+        </div>
       )}
-      </>
-      )}
-      {!standalone && <Handle type="source" position={Position.Bottom} />}
     </div>
   )
 }
