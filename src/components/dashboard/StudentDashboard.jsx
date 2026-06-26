@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../auth/useAuth'
 
-export default function StudentDashboard({ onRunWorkflow }) {
+export default function StudentDashboard({ onRunWorkflow, refreshTrigger = 0 }) {
   const { user } = useAuth()
   const [workflows, setWorkflows] = useState([])
   const [workflowRuns, setWorkflowRuns] = useState({})
@@ -42,6 +42,8 @@ export default function StudentDashboard({ onRunWorkflow }) {
           .select('workflow_id, status, last_score, completed_at')
           .eq('student_id', user.id)
 
+        console.log('Fetched workflow runs:', { runs, error: err2 })
+
         if (err2) throw err2
 
         // Map runs by workflow_id
@@ -52,7 +54,7 @@ export default function StudentDashboard({ onRunWorkflow }) {
         setWorkflowRuns(runsMap)
 
         console.log('Workflows:', validWorkflows)
-        console.log('Runs:', runsMap)
+        console.log('Runs Map:', runsMap)
       } catch (err) {
         console.error('Error fetching data:', err)
         setError(err.message)
@@ -62,7 +64,7 @@ export default function StudentDashboard({ onRunWorkflow }) {
     }
 
     fetchData()
-  }, [user?.id])
+  }, [user?.id, refreshTrigger])
 
   if (loading) {
     return <div style={{ padding: 20 }}>Loading workflows...</div>

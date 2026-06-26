@@ -68,6 +68,11 @@ export default function StudentWorkflowRunner({ workflow, onBack }) {
 
   function handleConditionPass() {
     // Save to database and mark complete
+    console.log('Saving workflow completion:', { 
+      workflowId: workflow?.id, 
+      userId: user?.id, 
+      score: quizScore 
+    })
     saveWorkflowCompletion('complete', quizScore)
     setCompleted(true)
   }
@@ -103,27 +108,38 @@ export default function StudentWorkflowRunner({ workflow, onBack }) {
 
   async function saveWorkflowCompletion(status, score) {
     try {
-      if (!user?.id || !workflow?.id) return
+      console.log('saveWorkflowCompletion called:', { status, score, workflowId: workflow?.id, userId: user?.id })
+      
+      if (!user?.id || !workflow?.id) {
+        console.error('Missing user or workflow ID', { userId: user?.id, workflowId: workflow?.id })
+        return
+      }
 
-      const { error } = await supabase
+      const payload = {
+        workflow_id: workflow.id,
+        student_id: user.id,
+        status,
+        last_score: score
+      }
+
+      console.log('Inserting payload:', payload)
+
+      const { data, error } = await supabase
         .from('workflow_runs')
-        .insert([{
-          workflow_id: workflow.id,
-          student_id: user.id,
-          status,
-          last_score: score,
-          retry_count: retryCount,
-          completed_nodes: visibleSteps.length,
-          node_outputs: { quiz_score: score },
-          node_status: {},
-          scores: {},
-          weak_topics: []
-        }])
+        .insert([payload])
+        .select()
 
-      if (error) throw error
-      console.log('Workflow saved to database')
+      if (error) {
+        console.error('❌ Database insert error:', error)
+        console.error('Error message:', error.message)
+        console.error('Error details:', error.details)
+        console.error('Error hint:', error.hint)
+        throw error
+      }
+      
+      console.log('✅ Workflow saved to database:', data)
     } catch (err) {
-      console.error('Error saving workflow:', err)
+      console.error('❌ Error saving workflow:', err.message || err)
     }
   }
 
