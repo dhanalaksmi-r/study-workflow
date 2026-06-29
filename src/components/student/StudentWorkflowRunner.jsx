@@ -26,15 +26,36 @@ export default function StudentWorkflowRunner({ workflow, onBack }) {
   const [quizAnswers, setQuizAnswers] = useState(null)
   const [completed, setCompleted] = useState(false)
 
-  // Step sequence
-  const STEPS = [
-    { id: 'start', label: '🎯', title: 'Set Topic' },
-    { id: 'resources', label: '📚', title: 'Resources' },
-    { id: 'flashcards', label: '🃏', title: 'Flashcards' },
-    { id: 'quiz', label: '📝', title: 'Quiz' },
-    { id: 'condition', label: '◆', title: 'Check Score' },
-    { id: 'weakspot', label: '🔍', title: 'Analyse Gaps' }, // Only if retry
-  ]
+  // Step sequence - built from workflow's node_structure
+  const nodeTypeLabels = {
+    start: '🎯',
+    resources: '📚',
+    flashcards: '🃏',
+    quiz: '📝',
+    condition: '◆',
+    weakspot: '🔍',
+    end: '✓'
+  }
+
+  // Debug: log what we're getting
+  console.log('Workflow node_structure:', workflow?.node_structure)
+
+  // Step sequence - built from workflow's node_structure
+  const hasCustomStructure = workflow?.node_structure?.nodes && workflow.node_structure.nodes.length > 0
+  
+  const STEPS = hasCustomStructure 
+    ? workflow.node_structure.nodes.map(n => ({
+        id: n.type,
+        label: nodeTypeLabels[n.type] || '?',
+        title: n.type.charAt(0).toUpperCase() + n.type.slice(1)
+      }))
+    : [
+        { id: 'start', label: '🎯', title: 'Set Topic' },
+        { id: 'resources', label: '📚', title: 'Resources' },
+        { id: 'flashcards', label: '🃏', title: 'Flashcards' },
+        { id: 'quiz', label: '📝', title: 'Quiz' },
+        { id: 'condition', label: '◆', title: 'Check Score' }
+      ]
 
   // Determine which step to show (skip weakspot if passing)
   function getVisibleSteps() {

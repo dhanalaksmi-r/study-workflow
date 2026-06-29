@@ -27,7 +27,8 @@ export default function StudentDashboard({ onRunWorkflow, refreshTrigger = 0 }) 
               title, 
               topic, 
               description,
-              teacher_id
+              teacher_id,
+              node_structure
             )
           `)
 

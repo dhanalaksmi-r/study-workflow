@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../auth/useAuth'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
-export default function TeacherDashboard() {
+export default function TeacherDashboard({ onEditWorkflow }) {
   const { user } = useAuth()
   const [workflows, setWorkflows] = useState([])
   const [students, setStudents] = useState([])
@@ -12,6 +12,7 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState('overview')
+  const [deleting, setDeleting] = useState(null)
 
   useEffect(() => {
     if (!user?.id) return
@@ -72,6 +73,37 @@ export default function TeacherDashboard() {
 
     fetchData()
   }, [user?.id])
+
+  // Delete workflow
+  async function handleDeleteWorkflow(workflowId) {
+    if (!confirm('Delete this workflow? This cannot be undone.')) return
+
+    setDeleting(workflowId)
+    try {
+      // Delete from assigned_workflows
+      await supabase
+        .from('assigned_workflows')
+        .delete()
+        .eq('workflow_id', workflowId)
+
+      // Delete from workflows
+      await supabase
+        .from('workflows')
+        .delete()
+        .eq('id', workflowId)
+
+      // Remove from local state
+      setWorkflows(wfs => wfs.filter(w => w.id !== workflowId))
+      setRuns(rs => rs.filter(r => r.workflow_id !== workflowId))
+
+      console.log('✅ Workflow deleted')
+    } catch (err) {
+      console.error('Error deleting workflow:', err)
+      alert(`Error: ${err.message}`)
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   if (loading) return <div style={{ padding: 20 }}>Loading dashboard...</div>
   if (error) return <div style={{ padding: 20, color: '#E24B4A' }}>Error: {error}</div>
@@ -199,42 +231,69 @@ export default function TeacherDashboard() {
           border: '1px solid #eee'
         }}>
           <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', marginBottom: 16 }}>
-            📈 Class Overview
+            📈 Workflows
           </p>
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-            {workflows.map(wf => {
-              const wfRuns = runs.filter(r => r.workflow_id === wf.id)
-              const wfCompleted = wfRuns.filter(r => r.status === 'complete').length
-              const wfAvg = wfRuns.length > 0
-                ? Math.round(wfRuns.reduce((sum, r) => sum + (r.last_score || 0), 0) / wfRuns.length)
-                : 0
+          {workflows.length === 0 ? (
+            <p style={{ color: '#888', textAlign: 'center', padding: '20px' }}>
+              No workflows created yet
+            </p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+              {workflows.map(wf => {
+                const wfRuns = runs.filter(r => r.workflow_id === wf.id)
+                const wfCompleted = wfRuns.filter(r => r.status === 'complete').length
+                const wfAvg = wfRuns.length > 0
+                  ? Math.round(wfRuns.reduce((sum, r) => sum + (r.last_score || 0), 0) / wfRuns.length)
+                  : 0
 
-              return (
-                <div key={wf.id} style={{
-                  background: '#f9f9f9',
-                  borderRadius: 10,
-                  padding: 12,
-                  border: '1px solid #eee'
-                }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 8 }}>
-                    {wf.title}
-                  </p>
-                  <p style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
-                    Topic: {wf.topic}
-                  </p>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                    <span style={{ color: '#7F77DD', fontWeight: 600 }}>
-                      {wfCompleted}/{totalStudents} done
-                    </span>
-                    <span style={{ color: '#1D9E75', fontWeight: 600 }}>
-                      Avg: {wfAvg}%
-                    </span>
+                return (
+                  <div key={wf.id} style={{
+                    background: '#f9f9f9',
+                    borderRadius: 10,
+                    padding: 12,
+                    border: '1px solid #eee',
+                    position: 'relative'
+                  }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 8 }}>
+                      {wf.title}
+                    </p>
+                    <p style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+                      Topic: {wf.topic}
+                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 8 }}>
+                      <span style={{ color: '#7F77DD', fontWeight: 600 }}>
+                        {wfCompleted}/{totalStudents} done
+                      </span>
+                      <span style={{ color: '#1D9E75', fontWeight: 600 }}>
+                        Avg: {wfAvg}%
+                      </span>
+                    </div>
+
+                    {/* Delete button */}
+                    <button
+                      onClick={() => handleDeleteWorkflow(wf.id)}
+                      disabled={deleting === wf.id}
+                      style={{
+                        width: '100%',
+                        padding: '6px 0',
+                        background: '#E24B4A',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: deleting === wf.id ? 'not-allowed' : 'pointer',
+                        opacity: deleting === wf.id ? 0.6 : 1
+                      }}
+                    >
+                      {deleting === wf.id ? 'Deleting...' : '🗑️ Delete'}
+                    </button>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 

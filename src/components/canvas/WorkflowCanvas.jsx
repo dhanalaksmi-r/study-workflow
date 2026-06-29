@@ -1,143 +1,253 @@
-// src/components/canvas/WorkflowCanvas.jsx
-import { useEffect, useState, useCallback, useRef } from 'react'
-import {
-  ReactFlow, Background, Controls, MiniMap,
-  addEdge, applyNodeChanges, applyEdgeChanges
+// src/components/teacher/WorkflowCanvas.jsx
+import { useCallback, useState } from 'react'
+import { 
+  ReactFlow, 
+  Controls, 
+  Background,
+  useNodesState,
+  useEdgesState,
+  addEdge,
+  Handle,
+  Position
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
-import NodeSidebar from './NodeSidebar'
-import { useWorkflowStore } from '../../store/workflowStore'
-
-import StartNode from '../nodes/StartNode'
-import EndNode from '../nodes/EndNode'
-import ResourceCuratorNode from '../nodes/ResourceCuratorNode'
-import FlashcardGeneratorNode from '../nodes/FlashcardGeneratorNode'
-import QuizGeneratorNode from '../nodes/QuizGeneratorNode'
-import AssignmentReviewerNode from '../nodes/AssignmentReviewerNode'
-import WeakSpotDetectorNode from '../nodes/WeakSpotDetectorNode'
-import ConditionNode from '../nodes/ConditionNode'
-import TextInputNode from '../nodes/TextInputNode'
-
+// Node types
 const nodeTypes = {
-  startNode: StartNode,
-  endNode: EndNode,
-  resourceCurator: ResourceCuratorNode,
-  flashcardGenerator: FlashcardGeneratorNode,
-  quizGenerator: QuizGeneratorNode,
-  assignmentReviewer: AssignmentReviewerNode,
-  weakSpotDetector: WeakSpotDetectorNode,
-  conditionNode: ConditionNode,
-  textInput: TextInputNode,
+  start: { label: '🎯 Start', color: '#7F77DD' },
+  resources: { label: '📚 Resources', color: '#7F77DD' },
+  flashcards: { label: '🃏 Flashcards', color: '#7F77DD' },
+  quiz: { label: '📝 Quiz', color: '#7F77DD' },
+  condition: { label: '◆ Condition', color: '#EF9F27' },
+  weakspot: { label: '🔍 Weak Spot', color: '#EF9F27' },
+  end: { label: '✓ End', color: '#1D9E75' }
 }
 
-// ─── Demo workflow layout ───────────────────────────────────────────────────
-//
-//   Start
-//     ↓
-//   Resource Curator  ←──────────────────┐
-//     ↓                                  │ loop back (dashed)
-//   Flashcard Generator                  │
-//     ↓                                  │
-//   Quiz Generator                       │
-//     ↓                                  │
-//   Condition Node                       │
-//     ├── pass  → End                    │
-//     └── retry → Weak Spot Detector ────┘
-//
-const initialNodes = [
-  { id: '1', type: 'startNode',          position: { x: 480, y: 40 },   data: { topic: 'React Hooks' } },
-  { id: '2', type: 'resourceCurator',    position: { x: 410, y: 180 },  data: {} },
-  { id: '3', type: 'flashcardGenerator', position: { x: 410, y: 420 },  data: {} },
-  { id: '4', type: 'quizGenerator',      position: { x: 390, y: 700 },  data: {} },
-  { id: '5', type: 'conditionNode',      position: { x: 480, y: 1180 }, data: {} },
-  { id: '6', type: 'endNode',            position: { x: 900, y: 1380 }, data: {} },
-  { id: '7', type: 'weakSpotDetector',   position: { x: 60,  y: 1380 }, data: {} },
-  { id: '8', type: 'textInput',          position: { x: 900, y: 400 }, data: {} },
-  { id: '9', type: 'assignmentReviewer', position: { x: 870, y: 650 }, data: {} },
-]
+// Custom node component
+function CanvasNode({ data, isConnectable }) {
+  return (
+    <div style={{
+      background: data.color,
+      color: '#fff',
+      padding: '12px 16px',
+      borderRadius: 8,
+      fontSize: 12,
+      fontWeight: 600,
+      textAlign: 'center',
+      cursor: 'pointer',
+      minWidth: 100,
+      border: '2px solid transparent'
+    }}>
+      <Handle type="target" position={Position.Top} isConnectable={isConnectable} />
+      {data.label}
+      <Handle type="source" position={Position.Bottom} isConnectable={isConnectable} />
+    </div>
+  )
+}
 
-const initialEdges = [
-  { id: 'e1-2', source: '1', target: '2' },
-  { id: 'e2-3', source: '2', target: '3' },
-  { id: 'e3-4', source: '3', target: '4' },
-  { id: 'e4-5', source: '4', target: '5' },
-  // Named source handles — ConditionNode highlights one of these on evaluate
-  { id: 'e5-6', source: '5', sourceHandle: 'pass',  target: '6', label: 'Pass ≥70%',
-    style: { stroke: '#ddd' }, labelStyle: { fill: '#bbb' } },
-  { id: 'e5-7', source: '5', sourceHandle: 'retry', target: '7', label: 'Retry <70%',
-    style: { stroke: '#ddd' }, labelStyle: { fill: '#bbb' } },
-  // Loop back from Weak Spot Detector to Resource Curator
-  { id: 'e7-2', source: '7', target: '2', label: 'Loop back',
-    style: { stroke: '#AFA9EC', strokeDasharray: '5 5' }, labelStyle: { fill: '#7F77DD' } },
-  { id: 'e8-9', source: '8', target: '9' },
-]
+export default function WorkflowCanvas({ workflowId, initialNodes = [], onSave }) {
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes.length > 0 ? initialNodes : [])
+  const [edges, setEdges, onEdgesChange] = useEdgesState([])
+  const [selectedNode, setSelectedNode] = useState(null)
+  const [saving, setSaving] = useState(false)
 
-export default function WorkflowCanvas() {
-  const storeNodes = useWorkflowStore(s => s.nodes)
-  const storeEdges = useWorkflowStore(s => s.edges)
-  const setStoreNodes = useWorkflowStore(s => s.setNodes)
-  const setStoreEdges = useWorkflowStore(s => s.setEdges)
+  // Handle connections
+  const onConnect = useCallback(
+    (connection) => setEdges(eds => addEdge(connection, eds)),
+    [setEdges]
+  )
 
-  // Initialize the store with the demo workflow on first load only
-  useEffect(() => {
-    if (storeNodes.length === 0) setStoreNodes(initialNodes)
-    if (storeEdges.length === 0) setStoreEdges(initialEdges)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const reactFlowWrapper = useRef(null)
-  const [reactFlowInstance, setReactFlowInstance] = useState(null)
-
-  const onNodesChange = useCallback((changes) => {
-    setStoreNodes(applyNodeChanges(changes, storeNodes))
-  }, [storeNodes, setStoreNodes])
-
-  const onEdgesChange = useCallback((changes) => {
-    setStoreEdges(applyEdgeChanges(changes, storeEdges))
-  }, [storeEdges, setStoreEdges])
-
-  const onConnect = useCallback((params) => {
-    setStoreEdges(addEdge(params, storeEdges))
-  }, [storeEdges, setStoreEdges])
-
-  const onDrop = useCallback((e) => {
-    e.preventDefault()
-    const type = e.dataTransfer.getData('application/reactflow')
-    if (!type || !reactFlowInstance) return
-    const position = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY })
-    const newNode = { id: `node_${Date.now()}`, type, position, data: {} }
-    setStoreNodes([...storeNodes, newNode])
-  }, [reactFlowInstance, storeNodes, setStoreNodes])
-
-  const onDragOver = useCallback((e) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
+  // Drag from sidebar
+  const onDragOver = useCallback(event => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
   }, [])
 
+  const onDrop = useCallback(
+    event => {
+      event.preventDefault()
+
+      const nodeType = event.dataTransfer.getData('application/nodeType')
+      if (!nodeType || !nodeTypes[nodeType]) return
+
+      // Calculate position
+      const reactFlowBounds = event.currentTarget.getBoundingClientRect()
+      const position = {
+        x: event.clientX - reactFlowBounds.left - 50,
+        y: event.clientY - reactFlowBounds.top - 25
+      }
+
+      // Create new node
+      const newNode = {
+        id: `${nodeType}-${Date.now()}`,
+        data: { 
+          label: nodeTypes[nodeType].label,
+          color: nodeTypes[nodeType].color,
+          type: nodeType,
+          config: {} // For node-specific config (e.g., pass threshold)
+        },
+        position,
+        type: 'default'
+      }
+
+      setNodes(nds => [...nds, newNode])
+    },
+    [setNodes]
+  )
+
+  // Delete selected node
+  function deleteNode() {
+    if (!selectedNode) return
+    setNodes(nds => nds.filter(n => n.id !== selectedNode))
+    setEdges(eds => eds.filter(e => e.source !== selectedNode && e.target !== selectedNode))
+    setSelectedNode(null)
+  }
+
+  // Save workflow
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const nodeStructure = {
+        nodes: nodes.map(n => ({
+          id: n.id,
+          type: n.data.type,
+          position: n.position,
+          config: n.data.config
+        })),
+        edges: edges.map(e => ({
+          source: e.source,
+          target: e.target
+        }))
+      }
+
+      console.log('Saving workflow:', nodeStructure)
+      onSave?.(nodeStructure)
+    } catch (err) {
+      console.error('Error saving:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
-    <div style={{ display: 'flex', height: '100%', width: '100%' }}>
-      <NodeSidebar />
-      <div ref={reactFlowWrapper} style={{ flex: 1 }}>
+    <div style={{ display: 'flex', height: '100%' }}>
+      {/* Sidebar */}
+      <div style={{
+        width: 200,
+        background: '#fff',
+        borderRight: '1px solid #eee',
+        padding: 16,
+        overflowY: 'auto'
+      }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: '#888', marginBottom: 12 }}>
+          Drag nodes to canvas
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {Object.entries(nodeTypes).map(([type, config]) => (
+            <div
+              key={type}
+              draggable
+              onDragStart={e => e.dataTransfer.setData('application/nodeType', type)}
+              style={{
+                background: config.color,
+                color: '#fff',
+                padding: '10px 12px',
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'grab',
+                textAlign: 'center',
+                userSelect: 'none'
+              }}
+            >
+              {config.label}
+            </div>
+          ))}
+        </div>
+
+        <hr style={{ margin: '16px 0', borderColor: '#eee' }} />
+
+        {/* Controls */}
+        <button
+          onClick={deleteNode}
+          disabled={!selectedNode}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            borderRadius: 6,
+            border: 'none',
+            background: selectedNode ? '#E24B4A' : '#eee',
+            color: selectedNode ? '#fff' : '#bbb',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: selectedNode ? 'pointer' : 'not-allowed',
+            marginBottom: 8
+          }}
+        >
+          Delete Node
+        </button>
+
+        <button
+          onClick={handleSave}
+          disabled={saving || nodes.length === 0}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            borderRadius: 6,
+            border: 'none',
+            background: nodes.length > 0 ? '#1D9E75' : '#eee',
+            color: nodes.length > 0 ? '#fff' : '#bbb',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: nodes.length > 0 ? 'pointer' : 'not-allowed'
+          }}
+        >
+          {saving ? 'Saving...' : '💾 Save Workflow'}
+        </button>
+      </div>
+
+      {/* Canvas */}
+      <div style={{ flex: 1 }} onDragOver={onDragOver} onDrop={onDrop}>
         <ReactFlow
-        nodes={storeNodes}
-        edges={storeEdges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onInit={setReactFlowInstance}
-        onDrop={onDrop}
-        onDragOver={onDragOver}
-        nodeTypes={nodeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.2}
-        maxZoom={1.5}
+          nodes={nodes.map(n => ({
+            ...n,
+            data: { ...n.data },
+            selected: n.id === selectedNode
+          }))}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeClick={(event, node) => setSelectedNode(node.id)}
+          nodeTypes={{'default': CanvasNode}}
+          fitView
         >
           <Background />
           <Controls />
-          <MiniMap />
         </ReactFlow>
       </div>
+
+      {/* Info panel */}
+      {selectedNode && (
+        <div style={{
+          width: 200,
+          background: '#fff',
+          borderLeft: '1px solid #eee',
+          padding: 16,
+          fontSize: 12
+        }}>
+          <p style={{ fontWeight: 600, marginBottom: 8, color: '#1a1a1a' }}>
+            Node Config
+          </p>
+          <p style={{ color: '#888' }}>
+            {nodes.find(n => n.id === selectedNode)?.data.label}
+          </p>
+          <p style={{ color: '#bbb', fontSize: 11, marginTop: 8 }}>
+            More options coming soon
+          </p>
+        </div>
+      )}
     </div>
   )
 }

@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../auth/useAuth'
 import Navbar from '../components/Navbar'
-import TeacherDashboard from  '../components/dashboard/TeacherDashboard'
+import TeacherDashboard from '../components/dashboard/TeacherDashboard'
+import WorkflowBuilder from '../components/teacher/WorkflowBuilder'
 
 export default function TeacherPage() {
   const navigate = useNavigate()
@@ -15,6 +16,7 @@ export default function TeacherPage() {
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState(null)
 
   async function handleCreateWorkflow(e) {
     e.preventDefault()
@@ -22,7 +24,6 @@ export default function TeacherPage() {
     setMessage('')
 
     try {
-      // Create workflow
       const { data, error } = await supabase
         .from('workflows')
         .insert([{
@@ -41,7 +42,6 @@ export default function TeacherPage() {
       setTitle('')
       setDescription('')
 
-      // Assign it
       if (data?.[0]) {
         await supabase
           .from('assigned_workflows')
@@ -51,7 +51,13 @@ export default function TeacherPage() {
             class_name: 'Class 1'
           }])
 
-        setMessage(`✓ Workflow assigned to students!`)
+        setMessage(`✓ Workflow created and assigned to students!`)
+        
+        // Auto-open canvas for editing
+        setTimeout(() => {
+          setSelectedWorkflowId(data[0].id)
+          setView('canvas')
+        }, 1500)
       }
     } catch (err) {
       setMessage(`❌ Error: ${err.message}`)
@@ -112,6 +118,25 @@ export default function TeacherPage() {
         >
           ➕ Create Workflow
         </button>
+        
+        {selectedWorkflowId && (
+          <button
+            onClick={() => setView('canvas')}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: 13,
+              fontWeight: 600,
+              color: view === 'canvas' ? '#7F77DD' : '#888',
+              cursor: 'pointer',
+              borderBottom: view === 'canvas' ? '3px solid #7F77DD' : 'none',
+              paddingBottom: 16,
+              marginBottom: -1
+            }}
+          >
+            🎨 Edit Canvas
+          </button>
+        )}
 
         <div style={{ flex: 1 }} />
 
@@ -122,13 +147,21 @@ export default function TeacherPage() {
       <div style={{ flex: 1, overflow: 'auto' }}>
         {view === 'dashboard' ? (
           <TeacherDashboard />
+        ) : view === 'canvas' ? (
+          <WorkflowBuilder
+            workflowId={selectedWorkflowId}
+            onSaved={() => {
+              setSelectedWorkflowId(null)
+              setView('dashboard')
+            }}
+          />
         ) : (
           <div style={{ padding: '24px 28px', maxWidth: 600, margin: '0 auto' }}>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>
               Create a Workflow
             </h2>
             <p style={{ fontSize: 14, color: '#888', marginBottom: 24 }}>
-              Design an adaptive learning workflow for your students.
+              Create a new workflow, then customize it with the canvas editor.
             </p>
 
             {message && (
@@ -225,16 +258,17 @@ export default function TeacherPage() {
                   fontSize: 15,
                   fontWeight: 700,
                   cursor: !topic || loading ? 'not-allowed' : 'pointer',
-                  opacity: !topic ? 0.6 : 1
+                  opacity: !topic ? 0.6 : 1,
+                  marginBottom: 12
                 }}
               >
-                {loading ? 'Creating...' : '📤 Create & Assign to Students'}
+                {loading ? 'Creating...' : '📤 Create Workflow'}
               </button>
-            </form>
 
-            <p style={{ fontSize: 13, color: '#888', marginTop: 20 }}>
-              Created workflows will be immediately assigned to students. They'll see them in their dashboard.
-            </p>
+              <p style={{ fontSize: 12, color: '#888' }}>
+                You'll be able to customize the learning path in the canvas editor after creation.
+              </p>
+            </form>
           </div>
         )}
       </div>
