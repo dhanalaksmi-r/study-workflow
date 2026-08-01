@@ -6,8 +6,8 @@ export default function Navbar({ title }) {
   const navigate = useNavigate()
 
   const roleColors = {
-    teacher: { bg: '#7F77DD', label: 'Teacher' },
-    student: { bg: '#1D9E75', label: 'Student' },
+    teacher: { bg: '#1e40af', label: 'Teacher' },
+    student: { bg: '#1e40af', label: 'Student' },
   }
   const rc = roleColors[role] || roleColors.student
 

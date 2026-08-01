@@ -166,7 +166,7 @@ export default function TeacherDashboard({ onEditWorkflow }) {
           border: '1px solid #eee'
         }}>
           <p style={{ fontSize: 13, color: '#888', marginBottom: 6, fontWeight: 500 }}>Completion Rate</p>
-          <p style={{ fontSize: 28, fontWeight: 800, color: '#7F77DD', marginBottom: 2 }}>{completionRate}%</p>
+          <p style={{ fontSize: 28, fontWeight: 800, color: '#1e40af', marginBottom: 2 }}>{completionRate}%</p>
           <p style={{ fontSize: 11, color: '#bbb' }}>{completedRuns} of {totalStudents * workflows.length}</p>
         </div>
 
@@ -208,7 +208,7 @@ export default function TeacherDashboard({ onEditWorkflow }) {
               borderRadius: 8,
               cursor: 'pointer',
               border: activeTab === tab ? 'none' : '1px solid #eee',
-              background: activeTab === tab ? '#7F77DD' : '#fff',
+              background: activeTab === tab ? '#1e40af' : '#fff',
               color: activeTab === tab ? '#fff' : '#888',
               fontSize: 13,
               fontWeight: 600,
@@ -396,7 +396,7 @@ export default function TeacherDashboard({ onEditWorkflow }) {
                 <Tooltip formatter={v => [v, 'Count']} />
                 <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                   {scoreDistribution.map((entry, i) => (
-                    <Cell key={i} fill="#7F77DD" />
+                    <Cell key={i} fill="#1e40af" />
                   ))}
                 </Bar>
               </BarChart>

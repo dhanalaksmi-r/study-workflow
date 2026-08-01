@@ -121,7 +121,7 @@ export default function StudentDashboard({ onRunWorkflow, refreshTrigger = 0 }) 
                 key={item.id}
                 style={{
                   background: '#fff',
-                  border: isComplete ? '2px solid #1D9E75' : '2px solid #7F77DD',
+                  border: isComplete ? '2px solid #1D9E75' : '2px solid #1e40af',
                   borderRadius: 12,
                   padding: '20px',
                   display: 'flex',
@@ -140,7 +140,7 @@ export default function StudentDashboard({ onRunWorkflow, refreshTrigger = 0 }) 
                       padding: '2px 8px',
                       borderRadius: 6,
                       background: isComplete ? '#E1F5EE' : '#EEEDFE',
-                      color: isComplete ? '#085041' : '#534AB7',
+                      color: isComplete ? '#085041' : ' #1e40af',
                       fontWeight: 600
                     }}>
                       {isComplete ? '✓ Complete' : 'Not started'}
@@ -186,8 +186,8 @@ export default function StudentDashboard({ onRunWorkflow, refreshTrigger = 0 }) 
                     padding: '10px 20px',
                     borderRadius: 10,
                     border: 'none',
-                    background: isComplete ? '#E1F5EE' : '#7F77DD',
-                    color: isComplete ? '#085041' : '#fff',
+                    background: isComplete ? '#E1F5EE' : '#1e40af',
+                    color: isComplete ? ' #1e40af' : '#fff',
                     fontWeight: 600,
                     cursor: 'pointer',
                     fontSize: 13,

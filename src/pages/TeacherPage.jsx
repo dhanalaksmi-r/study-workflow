@@ -93,9 +93,9 @@ export default function TeacherPage() {
             border: 'none',
             fontSize: 13,
             fontWeight: 600,
-            color: view === 'dashboard' ? '#7F77DD' : '#888',
+            color: view === 'dashboard' ? '#1e40af' : '#888',
             cursor: 'pointer',
-            borderBottom: view === 'dashboard' ? '3px solid #7F77DD' : 'none',
+            borderBottom: view === 'dashboard' ? '3px solid  #1e40af' : 'none',
             paddingBottom: 16,
             marginBottom: -1
           }}
@@ -109,9 +109,9 @@ export default function TeacherPage() {
             border: 'none',
             fontSize: 13,
             fontWeight: 600,
-            color: view === 'create' ? '#7F77DD' : '#888',
+            color: view === 'create' ? '#1e40af' : '#888',
             cursor: 'pointer',
-            borderBottom: view === 'create' ? '3px solid #7F77DD' : 'none',
+            borderBottom: view === 'create' ? '3px solid #1e40af' : 'none',
             paddingBottom: 16,
             marginBottom: -1
           }}
@@ -127,9 +127,9 @@ export default function TeacherPage() {
               border: 'none',
               fontSize: 13,
               fontWeight: 600,
-              color: view === 'canvas' ? '#7F77DD' : '#888',
+              color: view === 'canvas' ? '#1e40af' : '#888',
               cursor: 'pointer',
-              borderBottom: view === 'canvas' ? '3px solid #7F77DD' : 'none',
+              borderBottom: view === 'canvas' ? '3px solid #1e40af' : 'none',
               paddingBottom: 16,
               marginBottom: -1
             }}

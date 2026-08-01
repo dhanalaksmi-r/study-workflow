@@ -30,11 +30,9 @@ export default function StartNode({ id, topic: initialTopic, onTopicChange, onNe
       maxWidth: 520
     }}>
       <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>
-        🎯 Set Your Topic
+        🎯 Assigned Topic
       </h3>
-      <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
-        What would you like to learn today?
-      </p>
+      
 
       {submitted ? (
         <div style={{
@@ -53,27 +51,13 @@ export default function StartNode({ id, topic: initialTopic, onTopicChange, onNe
           }}>
             <div>
               <p style={{ fontSize: 13, color: '#0F6E56', fontWeight: 500, marginBottom: 4 }}>
-                Topic set
+                Topic 
               </p>
               <p style={{ fontSize: 16, fontWeight: 700, color: '#085041' }}>
                 {topic}
               </p>
             </div>
-            <button
-              onClick={handleEdit}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 6,
-                border: '1px solid #5DCAA5',
-                background: '#fff',
-                color: '#085041',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              Edit
-            </button>
+            
           </div>
 
           <button
